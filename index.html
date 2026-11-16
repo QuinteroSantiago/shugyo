@@ -181,18 +181,27 @@ const pretty = day => { const [y, m, d] = day.split("-").map(Number); return new
 // ---- per-template tools (by template index; language-independent) ----
 // link = a "how to" video, timer = minutes (auto check-in when it ends), note = a daily text box.
 const RAJIO_URL = "https://www.youtube.com/results?search_query=%E3%83%A9%E3%82%B8%E3%82%AA%E4%BD%93%E6%93%8D%E7%AC%AC%E4%B8%80";
-const TOOLS = [
-  { link: RAJIO_URL }, { timer: 10 }, { timer: 10 }, {}, {}, { timer: 20 }, { note: 1 }, { note: 1 }, { note: 1 },
-  {}, {}, { timer: 20 }, { timer: 5 }, { note: 1 }, { note: 1 }, {}, {}, {}, { timer: 5 },
-];
-const tools = c => (c.tpl != null && TOOLS[c.tpl]) || {};
+// Stable template ids, in the same order as LANGS[*].tpl. Challenges store the id,
+// so templates can be added/removed without breaking anyone's saved data.
+const TPL = ["rajio", "zazen", "soji", "shodo", "hara", "shinrin", "kakeibo", "nikki", "kaizen",
+             "read", "pushups", "meditate", "gratitude", "words", "nophone", "water", "stretch"];
+const OLD_TPL = ["rajio", "zazen", "soji", "shodo", "hara", "shinrin", "kakeibo", "nikki", "kaizen",
+                 "read", "pushups", "walk", "meditate", "gratitude", "words", "nophone", "water", "bed", "stretch"]; // v1 numeric indexes
+const TOOLS = {
+  rajio: { link: RAJIO_URL }, zazen: { timer: 10 }, soji: { timer: 10 }, shinrin: { timer: 20 },
+  kakeibo: { note: 1 }, nikki: { note: 1 }, kaizen: { note: 1 }, gratitude: { note: 1 }, words: { note: 1 },
+  meditate: { timer: 5 }, stretch: { timer: 5 },
+  walk: { timer: 20 }, // retired template, kept so existing "walk" challenges keep their timer
+};
+const tools = c => TOOLS[c.tpl] || {};
 // Challenges made before tools existed: match their name against any language's template names.
 function backfillTpl() {
   for (const c of state.challenges) {
+    if (typeof c.tpl === "number") c.tpl = OLD_TPL[c.tpl];
     if (c.tpl != null) continue;
     for (const Lx of Object.values(LANGS)) {
       const i = Lx.tpl.findIndex(([name]) => name === c.name);
-      if (i >= 0) { c.tpl = i; break; }
+      if (i >= 0) { c.tpl = TPL[i]; break; }
     }
   }
 }
@@ -402,7 +411,7 @@ $("add").onclick = () => openSheet(s => {
   inp.onkeydown = e => { if (e.key === "Enter") submit(); };
   s.appendChild(btn(t("start"), "primary", submit));
 
-  // 19 starter templates: 0-8 Japanese classics, 9-18 personal growth.
+  // Starter templates: 0-8 Japanese classics (always kept), 9+ personal growth.
   // Small on purpose — a shugyō only works if you can do it on your worst day.
   const box = el("div", "tpl");
   const tpl = L().tpl;
@@ -413,7 +422,7 @@ $("add").onclick = () => openSheet(s => {
     b.appendChild(el("b", null, name));
     b.appendChild(el("small", null, hint));
     b.onclick = () => {
-      inp.value = name; picked = i;
+      inp.value = name; picked = TPL[i];
       inp.scrollIntoView({ behavior: "smooth", block: "center" });
       toast(t("tplToast"));
     };
