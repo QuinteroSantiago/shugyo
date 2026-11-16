@@ -156,6 +156,7 @@
 <script src="i18n.js"></script>
 <script src="i18n-more.js"></script>
 <script src="i18n-world.js"></script>
+<script src="i18n-ios.js"></script>
 <script>
 "use strict";
 const GOAL = 100;
@@ -170,7 +171,7 @@ function detectLang() {
     const tag = String(l).toLowerCase();
     // Taiwan / Hong Kong / Macau and explicit "Hant" tags read Traditional Chinese.
     if (/^zh-(hant|tw|hk|mo)/.test(tag)) return "zh-Hant";
-    const base = { tl: "fil" }[tag.split("-")[0]] || tag.split("-")[0];
+    const base = { tl: "fil", no: "nb", nn: "nb", iw: "he", in: "id" }[tag.split("-")[0]] || tag.split("-")[0];
     if (LANGS[base]) return base;
   }
   return "en";
