@@ -155,6 +155,7 @@
 
 <script src="i18n.js"></script>
 <script src="i18n-more.js"></script>
+<script src="i18n-world.js"></script>
 <script>
 "use strict";
 const GOAL = 100;
@@ -169,7 +170,7 @@ function detectLang() {
     const tag = String(l).toLowerCase();
     // Taiwan / Hong Kong / Macau and explicit "Hant" tags read Traditional Chinese.
     if (/^zh-(hant|tw|hk|mo)/.test(tag)) return "zh-Hant";
-    const base = tag.split("-")[0];
+    const base = { tl: "fil" }[tag.split("-")[0]] || tag.split("-")[0];
     if (LANGS[base]) return base;
   }
   return "en";
@@ -224,14 +225,15 @@ const RAJIO_URL = "https://www.youtube.com/results?search_query=%E3%83%A9%E3%82%
 // Stable template ids, in the same order as LANGS[*].tpl. Challenges store the id,
 // so templates can be added/removed without breaking anyone's saved data.
 const TPL = ["rajio", "zazen", "soji", "shodo", "hara", "shinrin", "kakeibo", "nikki", "kaizen",
-             "read", "pushups", "meditate", "gratitude", "words", "nophone", "water", "stretch"];
+             "read", "pushups", "words", "nophone", "water"];
 const OLD_TPL = ["rajio", "zazen", "soji", "shodo", "hara", "shinrin", "kakeibo", "nikki", "kaizen",
                  "read", "pushups", "walk", "meditate", "gratitude", "words", "nophone", "water", "bed", "stretch"]; // v1 numeric indexes
 const TOOLS = {
   rajio: { link: RAJIO_URL }, zazen: { timer: 10 }, soji: { timer: 10 }, shinrin: { timer: 20 },
   kakeibo: { note: 1 }, nikki: { note: 1 }, kaizen: { note: 1 }, gratitude: { note: 1 }, words: { note: 1 },
   meditate: { timer: 5 }, stretch: { timer: 5 },
-  walk: { timer: 20 }, // retired template, kept so existing "walk" challenges keep their timer
+  // Retired templates (no longer offered), kept so existing challenges keep their tools.
+  walk: { timer: 20 },
 };
 const tools = c => TOOLS[c.tpl] || {};
 // Challenges made before tools existed: match their name against any language's template names.
