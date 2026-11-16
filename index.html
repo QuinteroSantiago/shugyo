@@ -238,7 +238,33 @@ const TOOLS = {
 };
 const tools = c => TOOLS[c.tpl] || {};
 // Challenges made before tools existed: match their name against any language's template names.
+// Template names that changed (2026-11-16: read 10 → 5 pages, push-ups 10 → 20).
+// A challenge still named exactly like the old template, in any language, gets the
+// new name; anything the person renamed themselves is left alone.
+function oldTemplateNames() {
+  const old = new Map(); // old name → [lang, template index]
+  for (const [code, Lx] of Object.entries(LANGS)) {
+    old.set(Lx.tpl[9][0].replace(/(^|\D)5(?!\d)/, "$110"), [code, 9]);
+    old.set(Lx.tpl[10][0].replace(/(^|\D)20(?!\d)/, "$110"), [code, 10]);
+  }
+  // Where the new number also changed the grammar, the old name isn't a plain swap.
+  old.set("Perskaityk 10 puslapių", ["lt", 9]);
+  old.set("10 تمارين ضغط", ["ar", 10]);
+  return old;
+}
+function renameOldTemplates() {
+  const old = oldTemplateNames();
+  for (const c of state.challenges) {
+    const hit = old.get(c.name);
+    const tpl = typeof c.tpl === "number" ? OLD_TPL[c.tpl] : c.tpl;
+    if (!hit || (tpl != null && tpl !== TPL[hit[1]])) continue;
+    c.name = LANGS[hit[0]].tpl[hit[1]][0];
+    c.tpl = TPL[hit[1]];
+  }
+}
+
 function backfillTpl() {
+  renameOldTemplates();
   for (const c of state.challenges) {
     if (typeof c.tpl === "number") c.tpl = OLD_TPL[c.tpl];
     if (c.tpl != null) continue;
