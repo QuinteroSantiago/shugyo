@@ -86,6 +86,18 @@
   }
   .sheet .btn.primary { background: var(--red); color: #fff; font-weight: 650; }
   .sheet .btn.danger { color: var(--red); }
+  .sheet { max-height: 88dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .tpl { margin-top: 16px; }
+  .tpl-g { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 2px 6px; }
+  .tpl-i {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left;
+    border: 0; border-radius: 12px; background: var(--card2); color: var(--text); font: inherit;
+    padding: 11px 14px; margin-bottom: 6px; cursor: pointer;
+  }
+  .tpl-i:active { transform: scale(.99); }
+  .tpl-i b { font-size: 15px; }
+  .tpl-i span { font-size: 13px; color: var(--text); opacity: .8; }
+  .tpl-i small { font-size: 12px; color: var(--muted); }
   .sheet .hist { max-height: 30vh; overflow: auto; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
   .sheet .hist div { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); }
   .toast {
@@ -241,9 +253,64 @@ function nameSheet(titleText, initial, onSave) {
   });
 }
 
-$("add").onclick = () => nameSheet("What will you do every day for 100 days?", "", name => {
+// Starter templates: small on purpose — a shugyō only works if you can do it on your worst day.
+const TEMPLATES = [
+  { group: "Japanese classics", items: [
+    ["Rajio taisō", "Radio calisthenics, ~3 min", "Japan's morning exercise routine, broadcast every day since 1928."],
+    ["Zazen, 10 minutes", "Seated meditation", "Sit still, count your breaths. The core practice of Zen."],
+    ["Sōji, 10 minutes", "Clean one small area", "Japanese students clean their own schools: cleaning as practice."],
+    ["Shodō, one character", "Write one kanji or word by brush or pen", "Calligraphy: one careful character a day."],
+    ["Hara hachi bu", "Stop eating at 80% full, at one meal", "The Okinawan habit linked to long, healthy lives."],
+    ["Shinrin-yoku, 20 minutes", "Walk among trees or in a park", "\"Forest bathing\": slow time outdoors, no phone."],
+    ["Kakeibo", "Write down today's spending", "The Japanese household budget diary, kept since 1904."],
+    ["Nikki, 3 lines", "Write three lines about today", "Diary keeping, a long Japanese tradition."],
+    ["Kaizen: one small fix", "Improve one tiny thing", "Continuous improvement, 1% at a time."],
+  ]},
+  { group: "Personal growth", items: [
+    ["Read 10 pages", "Any book, 10 pages", "≈ 1,000 pages in 100 days: about 4 books."],
+    ["10 push-ups", "Knees are fine", "1,000 push-ups by day 100."],
+    ["Walk 20 minutes", "Outside if you can", "The most reliable habit for mood and health."],
+    ["Meditate 5 minutes", "Any app or just breathe", "Short enough to never skip."],
+    ["3 things I'm grateful for", "Write them down", "Well-studied, takes two minutes."],
+    ["Learn 5 words", "In a language you're learning", "500 words by day 100."],
+    ["No phone first 30 minutes", "After waking up", "Start the day on your terms."],
+    ["Drink 2 liters of water", "", "Simple and easy to track."],
+    ["In bed by 11 pm", "Lights out, phone away", "Better sleep makes every other habit easier."],
+    ["Stretch 5 minutes", "", "Small daily mobility adds up."],
+  ]},
+];
+
+function addChallenge(name) {
   state.challenges.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, createdAt: today(), days: [], history: [] });
   save();
+}
+
+$("add").onclick = () => openSheet(s => {
+  s.appendChild(el("h3", null, "What will you do every day for 100 days?"));
+  const inp = el("input"); inp.placeholder = "Write your own…"; inp.maxLength = 80;
+  s.appendChild(inp);
+  const submit = () => { const v = inp.value.trim(); if (!v) return inp.focus(); addChallenge(v); closeSheet(); render(); };
+  inp.onkeydown = e => { if (e.key === "Enter") submit(); };
+  s.appendChild(btn("Start", "primary", submit));
+
+  const box = el("div", "tpl");
+  for (const g of TEMPLATES) {
+    box.appendChild(el("div", "tpl-g", g.group));
+    for (const [name, how, why] of g.items) {
+      const b = el("button", "tpl-i");
+      b.appendChild(el("b", null, name));
+      if (how) b.appendChild(el("span", null, how));
+      b.appendChild(el("small", null, why));
+      b.onclick = () => {
+        inp.value = name;
+        inp.scrollIntoView({ behavior: "smooth", block: "center" });
+        toast("Tap Start, or edit it first");
+      };
+      box.appendChild(b);
+    }
+  }
+  s.appendChild(box);
+  s.appendChild(btn("Cancel", "", closeSheet));
 });
 
 function openDetails(id) {
