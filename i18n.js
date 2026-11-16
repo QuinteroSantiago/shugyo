@@ -40,7 +40,7 @@ en: { label: "English", dir: "ltr",
     ["Stretch 5 minutes", "Small daily mobility adds up"],
   ] },
 
-zh: { label: "中文", dir: "ltr",
+zh: { label: "中文（简体）", dir: "ltr",
   rule: "一件事，每天做，坚持100天。漏掉一天就从0重新开始。",
   install: "在iPhone上：点“分享”→“添加到主屏幕”，像App一样使用。所有数据只保存在这台设备上。",
   emptyTitle: "开始你的第一个修行", emptyBody: "选一件你每天都会做的事。点 + 开始。",

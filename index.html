@@ -30,13 +30,26 @@
     overscroll-behavior-y: none;
   }
   header { display: flex; align-items: center; gap: 10px; margin: 6px 0 18px; }
-  header h1 { margin: 0; font-size: 30px; letter-spacing: -.02em; flex: 1; }
+  header h1 { margin: 0; font-size: 30px; letter-spacing: -.02em; flex: 1; min-width: 0; }
+  .langbtn {
+    display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 14px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size: 15px;
+    font-weight: 600; cursor: pointer; max-width: 100%; margin: -6px 0 16px;
+  }
+  .langbtn .chev { color: var(--muted); font-size: 12px; }
+  .langbtn #langname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lang-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0; }
+  .lang-i {
+    border: 1px solid transparent; border-radius: 12px; background: var(--card2); color: var(--text);
+    font: inherit; font-size: 15px; padding: 12px; cursor: pointer; text-align: center; width: 100%;
+  }
+  .lang-i.on { border-color: var(--red); color: var(--red); font-weight: 650; }
   .iconbtn {
     width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--card);
     color: var(--text); font-size: 22px; line-height: 1; display: grid; place-items: center; cursor: pointer;
   }
   .iconbtn.primary { background: var(--red); color: #fff; }
-  .rule { color: var(--muted); font-size: 14px; margin: -10px 0 18px; }
+  .rule { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
 
   .list { display: flex; flex-direction: column; gap: 12px; max-width: 560px; margin: 0 auto; }
   .card { background: var(--card); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
@@ -131,6 +144,7 @@
   <button class="iconbtn" id="menu" aria-label="Settings">⋯</button>
   <button class="iconbtn primary" id="add" aria-label="New challenge">+</button>
 </header>
+<button class="langbtn" id="langbtn" aria-label="Language"><span aria-hidden="true">🌐</span><span id="langname"></span><span class="chev" aria-hidden="true">▾</span></button>
 <p class="rule" id="rule"></p>
 <div class="list" id="list"></div>
 <p class="install" id="install" hidden></p>
@@ -140,6 +154,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="i18n.js"></script>
+<script src="i18n-more.js"></script>
 <script>
 "use strict";
 const GOAL = 100;
@@ -151,7 +166,10 @@ let LANG = "en";
 function langPref() { try { return localStorage.getItem(LANG_KEY) || "auto"; } catch { return "auto"; } }
 function detectLang() {
   for (const l of navigator.languages || [navigator.language || "en"]) {
-    const base = String(l).toLowerCase().split("-")[0];
+    const tag = String(l).toLowerCase();
+    // Taiwan / Hong Kong / Macau and explicit "Hant" tags read Traditional Chinese.
+    if (/^zh-(hant|tw|hk|mo)/.test(tag)) return "zh-Hant";
+    const base = tag.split("-")[0];
     if (LANGS[base]) return base;
   }
   return "en";
@@ -169,6 +187,28 @@ function applyLang() {
   document.documentElement.dir = L().dir;
   document.getElementById("rule").textContent = t("rule");
   document.getElementById("install").textContent = t("install");
+  document.getElementById("langname").textContent = L().label;
+}
+
+// Language picker: a full list, current one ticked. "Automatic" follows the phone.
+function openLangSheet() {
+  openSheet(s => {
+    s.appendChild(el("h3", null, "🌐 " + t("language")));
+    const pref = langPref();
+    const pick = code => { try { localStorage.setItem(LANG_KEY, code); } catch {} applyLang(); closeSheet(); render(); };
+    const auto = el("button", "lang-i" + (pref === "auto" ? " on" : ""), `${t("auto")} · ${LANGS[detectLang()].label}`);
+    auto.onclick = () => pick("auto");
+    s.appendChild(auto);
+    const list = el("div", "lang-list");
+    for (const [code, Lx] of Object.entries(LANGS)) {
+      const b = el("button", "lang-i" + (pref === code ? " on" : ""), Lx.label);
+      b.lang = code; b.dir = Lx.dir;
+      b.onclick = () => pick(code);
+      list.appendChild(b);
+    }
+    s.appendChild(list);
+    s.appendChild(btn(t("close"), "", closeSheet));
+  });
 }
 
 // ---- dates: the device's local calendar day ----
@@ -379,6 +419,7 @@ function openSheet(build) {
 }
 function closeSheet() { $("bg").classList.remove("open"); $("sheet").classList.remove("open"); }
 $("bg").onclick = closeSheet;
+$("langbtn").onclick = () => openLangSheet();
 function btn(text, cls, fn) { const b = el("button", "btn " + (cls || ""), text); b.onclick = fn; return b; }
 
 function nameSheet(titleText, initial, onSave) {
@@ -465,13 +506,7 @@ function openDetails(id) {
 // Backup: data lives only on this device, so offer export/import.
 $("menu").onclick = () => openSheet(s => {
   s.appendChild(el("h3", null, t("settings")));
-  s.appendChild(el("div", "tpl-g", t("language")));
-  const sel = el("select", "lang");
-  const optAuto = el("option", null, `${t("auto")} (${LANGS[detectLang()].label})`); optAuto.value = "auto"; sel.appendChild(optAuto);
-  for (const [code, L] of Object.entries(LANGS)) { const o = el("option", null, L.label); o.value = code; sel.appendChild(o); }
-  sel.value = langPref();
-  sel.onchange = () => { try { localStorage.setItem(LANG_KEY, sel.value); } catch {} applyLang(); closeSheet(); render(); };
-  s.appendChild(sel);
+  s.appendChild(btn(`🌐 ${t("language")}: ${L().label}`, "", openLangSheet));
   s.appendChild(el("p", "rule", t("dataBody")));
   s.appendChild(btn(t("export"), "", async () => {
     const json = JSON.stringify(state, null, 1);
