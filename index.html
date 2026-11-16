@@ -90,7 +90,7 @@
   .tpl { margin-top: 16px; }
   .tpl-g { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 2px 6px; }
   .tpl-i {
-    display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: start;
     border: 0; border-radius: 12px; background: var(--card2); color: var(--text); font: inherit;
     padding: 11px 14px; margin-bottom: 6px; cursor: pointer;
   }
@@ -98,6 +98,10 @@
   .tpl-i b { font-size: 15px; }
   .tpl-i span { font-size: 13px; color: var(--text); opacity: .8; }
   .tpl-i small { font-size: 12px; color: var(--muted); }
+  .sheet select.lang {
+    width: 100%; font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); margin-bottom: 8px;
+  }
   .sheet .hist { max-height: 30vh; overflow: auto; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
   .sheet .hist div { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); }
   .toast {
@@ -114,25 +118,52 @@
   <button class="iconbtn" id="menu" aria-label="Settings">⋯</button>
   <button class="iconbtn primary" id="add" aria-label="New challenge">+</button>
 </header>
-<p class="rule">One thing, every day, 100 days. Miss a day and you start again from 0.</p>
+<p class="rule" id="rule"></p>
 <div class="list" id="list"></div>
-<p class="install" id="install" hidden>On iPhone: tap <b>Share</b> → <b>Add to Home Screen</b> to use it like an app. Everything stays on this device.</p>
+<p class="install" id="install" hidden></p>
 
 <div class="sheet-bg" id="bg"></div>
 <div class="sheet" id="sheet"></div>
 <div class="toast" id="toast"></div>
 
+<script src="i18n.js"></script>
 <script>
 "use strict";
 const GOAL = 100;
 const KEY = "shugyo.v1";
+
+// ---- language: saved choice, else the device's first supported language, else English ----
+const LANG_KEY = "shugyo.lang";
+let LANG = "en";
+function langPref() { try { return localStorage.getItem(LANG_KEY) || "auto"; } catch { return "auto"; } }
+function detectLang() {
+  for (const l of navigator.languages || [navigator.language || "en"]) {
+    const base = String(l).toLowerCase().split("-")[0];
+    if (LANGS[base]) return base;
+  }
+  return "en";
+}
+const L = () => LANGS[LANG] || LANGS.en;
+function t(key, vars) {
+  let s = L()[key] ?? LANGS.en[key] ?? key;
+  if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(v);
+  return s;
+}
+function applyLang() {
+  const p = langPref();
+  LANG = p !== "auto" && LANGS[p] ? p : detectLang();
+  document.documentElement.lang = LANG;
+  document.documentElement.dir = L().dir;
+  document.getElementById("rule").textContent = t("rule");
+  document.getElementById("install").textContent = t("install");
+}
 
 // ---- dates: the device's local calendar day ----
 const pad = n => String(n).padStart(2, "0");
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const today = () => ymd(new Date());
 const addDays = (day, n) => { const [y, m, d] = day.split("-").map(Number); return ymd(new Date(y, m - 1, d + n)); };
-const pretty = day => { const [y, m, d] = day.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); };
+const pretty = day => { const [y, m, d] = day.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString(LANG, { month: "short", day: "numeric", year: "numeric" }); };
 
 // ---- storage ----
 // challenge = { id, name, createdAt, days: [YYYY-MM-DD consecutive], history: [{start,end,days,completed}] }
@@ -143,7 +174,7 @@ function load() {
 }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(state)); }
-  catch { toast("Couldn't save — storage is full or blocked"); }
+  catch { toast(t("saveFail")); }
 }
 
 // ---- rules ----
@@ -186,8 +217,8 @@ function render() {
   list.innerHTML = "";
   if (!state.challenges.length) {
     const e = el("div", "empty");
-    e.appendChild(el("b", null, "Start your first shugyō"));
-    e.appendChild(el("span", null, "Pick one thing you'll do every single day. Tap + to begin."));
+    e.appendChild(el("b", null, t("emptyTitle")));
+    e.appendChild(el("span", null, t("emptyBody")));
     list.appendChild(e);
   }
   for (const c of state.challenges) {
@@ -199,11 +230,11 @@ function render() {
     const title = el("div", "title");
     title.appendChild(el("h2", null, c.name));
     let sub, cls = "sub";
-    if (won) { sub = "100 days. Completed. 🎉"; cls += " good"; }
-    else if (c.justBroke) { sub = `Missed a day — back to 0. Best: ${best(c)}`; cls += " warn"; }
-    else if (!n) sub = c.history.length ? `Best ${best(c)} · ${c.history.filter(a => !a.completed).length} resets` : "Day 1 starts when you check in";
-    else if (done) { sub = `Day ${n} of ${GOAL} · done today`; cls += " good"; }
-    else { sub = `Day ${n} of ${GOAL} · not done today`; cls += " warn"; }
+    if (won) { sub = t("completed"); cls += " good"; }
+    else if (c.justBroke) { sub = t("broke", { b: best(c) }); cls += " warn"; }
+    else if (!n) sub = c.history.length ? t("bestResets", { b: best(c), r: c.history.filter(a => !a.completed).length }) : t("day1");
+    else if (done) { sub = t("dayDone", { n }); cls += " good"; }
+    else { sub = t("dayPending", { n }); cls += " warn"; }
     title.appendChild(el("div", cls, sub));
     head.appendChild(title);
     const more = el("button", "more", "⋯");
@@ -217,10 +248,10 @@ function render() {
     card.appendChild(dots);
 
     if (!won) {
-      const go = el("button", "go" + (done ? " done" : ""), done ? "Done today ✓  (tap to undo)" : `Done today → day ${n + 1}`);
+      const go = el("button", "go" + (done ? " done" : ""), done ? t("btnDone") : t("btnGo", { n: n + 1 }));
       go.onclick = () => {
-        if (doneToday(c)) { if (!confirm("Undo today's check-in?")) return; c.days.pop(); }
-        else { c.days.push(today()); delete c.justBroke; if (navigator.vibrate) navigator.vibrate(20); if (c.days.length === GOAL) toast("100 days. Shugyō complete 🎉"); }
+        if (doneToday(c)) { if (!confirm(t("confirmUndo"))) return; c.days.pop(); }
+        else { c.days.push(today()); delete c.justBroke; if (navigator.vibrate) navigator.vibrate(20); if (c.days.length === GOAL) toast(t("toastComplete")); }
         save(); render();
       };
       card.appendChild(go);
@@ -243,42 +274,15 @@ function btn(text, cls, fn) { const b = el("button", "btn " + (cls || ""), text)
 function nameSheet(titleText, initial, onSave) {
   openSheet(s => {
     s.appendChild(el("h3", null, titleText));
-    const inp = el("input"); inp.placeholder = "e.g. 50 push-ups, read 10 pages, no sugar"; inp.value = initial || ""; inp.maxLength = 80;
+    const inp = el("input"); inp.placeholder = t("placeholder"); inp.value = initial || ""; inp.maxLength = 80;
     s.appendChild(inp);
     const submit = () => { const v = inp.value.trim(); if (!v) return inp.focus(); onSave(v); closeSheet(); render(); };
     inp.onkeydown = e => { if (e.key === "Enter") submit(); };
-    s.appendChild(btn("Save", "primary", submit));
-    s.appendChild(btn("Cancel", "", closeSheet));
+    s.appendChild(btn(t("save"), "primary", submit));
+    s.appendChild(btn(t("cancel"), "", closeSheet));
     setTimeout(() => inp.focus(), 250);
   });
 }
-
-// Starter templates: small on purpose — a shugyō only works if you can do it on your worst day.
-const TEMPLATES = [
-  { group: "Japanese classics", items: [
-    ["Rajio taisō", "Radio calisthenics, ~3 min", "Japan's morning exercise routine, broadcast every day since 1928."],
-    ["Zazen, 10 minutes", "Seated meditation", "Sit still, count your breaths. The core practice of Zen."],
-    ["Sōji, 10 minutes", "Clean one small area", "Japanese students clean their own schools: cleaning as practice."],
-    ["Shodō, one character", "Write one kanji or word by brush or pen", "Calligraphy: one careful character a day."],
-    ["Hara hachi bu", "Stop eating at 80% full, at one meal", "The Okinawan habit linked to long, healthy lives."],
-    ["Shinrin-yoku, 20 minutes", "Walk among trees or in a park", "\"Forest bathing\": slow time outdoors, no phone."],
-    ["Kakeibo", "Write down today's spending", "The Japanese household budget diary, kept since 1904."],
-    ["Nikki, 3 lines", "Write three lines about today", "Diary keeping, a long Japanese tradition."],
-    ["Kaizen: one small fix", "Improve one tiny thing", "Continuous improvement, 1% at a time."],
-  ]},
-  { group: "Personal growth", items: [
-    ["Read 10 pages", "Any book, 10 pages", "≈ 1,000 pages in 100 days: about 4 books."],
-    ["10 push-ups", "Knees are fine", "1,000 push-ups by day 100."],
-    ["Walk 20 minutes", "Outside if you can", "The most reliable habit for mood and health."],
-    ["Meditate 5 minutes", "Any app or just breathe", "Short enough to never skip."],
-    ["3 things I'm grateful for", "Write them down", "Well-studied, takes two minutes."],
-    ["Learn 5 words", "In a language you're learning", "500 words by day 100."],
-    ["No phone first 30 minutes", "After waking up", "Start the day on your terms."],
-    ["Drink 2 liters of water", "", "Simple and easy to track."],
-    ["In bed by 11 pm", "Lights out, phone away", "Better sleep makes every other habit easier."],
-    ["Stretch 5 minutes", "", "Small daily mobility adds up."],
-  ]},
-];
 
 function addChallenge(name) {
   state.challenges.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, createdAt: today(), days: [], history: [] });
@@ -286,31 +290,32 @@ function addChallenge(name) {
 }
 
 $("add").onclick = () => openSheet(s => {
-  s.appendChild(el("h3", null, "What will you do every day for 100 days?"));
-  const inp = el("input"); inp.placeholder = "Write your own…"; inp.maxLength = 80;
+  s.appendChild(el("h3", null, t("newTitle")));
+  const inp = el("input"); inp.placeholder = t("placeholder"); inp.maxLength = 80;
   s.appendChild(inp);
   const submit = () => { const v = inp.value.trim(); if (!v) return inp.focus(); addChallenge(v); closeSheet(); render(); };
   inp.onkeydown = e => { if (e.key === "Enter") submit(); };
-  s.appendChild(btn("Start", "primary", submit));
+  s.appendChild(btn(t("start"), "primary", submit));
 
+  // 19 starter templates: 0-8 Japanese classics, 9-18 personal growth.
+  // Small on purpose — a shugyō only works if you can do it on your worst day.
   const box = el("div", "tpl");
-  for (const g of TEMPLATES) {
-    box.appendChild(el("div", "tpl-g", g.group));
-    for (const [name, how, why] of g.items) {
-      const b = el("button", "tpl-i");
-      b.appendChild(el("b", null, name));
-      if (how) b.appendChild(el("span", null, how));
-      b.appendChild(el("small", null, why));
-      b.onclick = () => {
-        inp.value = name;
-        inp.scrollIntoView({ behavior: "smooth", block: "center" });
-        toast("Tap Start, or edit it first");
-      };
-      box.appendChild(b);
-    }
-  }
+  const tpl = L().tpl;
+  tpl.forEach(([name, hint], i) => {
+    if (i === 0) box.appendChild(el("div", "tpl-g", t("groupJp")));
+    if (i === 9) box.appendChild(el("div", "tpl-g", t("groupGrowth")));
+    const b = el("button", "tpl-i");
+    b.appendChild(el("b", null, name));
+    b.appendChild(el("small", null, hint));
+    b.onclick = () => {
+      inp.value = name;
+      inp.scrollIntoView({ behavior: "smooth", block: "center" });
+      toast(t("tplToast"));
+    };
+    box.appendChild(b);
+  });
   s.appendChild(box);
-  s.appendChild(btn("Cancel", "", closeSheet));
+  s.appendChild(btn(t("cancel"), "", closeSheet));
 });
 
 function openDetails(id) {
@@ -319,24 +324,31 @@ function openDetails(id) {
     s.appendChild(el("h3", null, c.name));
     const h = el("div", "hist");
     const row = (l, r) => { const d = el("div"); d.appendChild(el("span", null, l)); d.appendChild(el("span", null, r)); h.appendChild(d); };
-    if (c.days.length) row(`Current run · since ${pretty(c.days[0])}`, `${c.days.length} days`);
-    for (const a of [...c.history].reverse()) row(`${pretty(a.start)} – ${pretty(a.end)}`, `${a.days} days ${a.completed ? "✓" : "✗"}`);
-    if (!c.days.length && !c.history.length) row("No runs yet", "");
+    if (c.days.length) row(t("currentRun", { d: pretty(c.days[0]) }), t("daysN", { n: c.days.length }));
+    for (const a of [...c.history].reverse()) row(`${pretty(a.start)} – ${pretty(a.end)}`, `${t("daysN", { n: a.days })} ${a.completed ? "✓" : "✗"}`);
+    if (!c.days.length && !c.history.length) row(t("noRuns"), "");
     s.appendChild(h);
-    s.appendChild(btn("Rename", "", () => nameSheet("Rename", c.name, v => { c.name = v; save(); })));
-    s.appendChild(btn("Delete challenge", "danger", () => {
-      if (!confirm(`Delete "${c.name}" and all its history?`)) return;
+    s.appendChild(btn(t("rename"), "", () => nameSheet(t("rename"), c.name, v => { c.name = v; save(); })));
+    s.appendChild(btn(t("delete"), "danger", () => {
+      if (!confirm(t("confirmDelete", { name: c.name }))) return;
       state.challenges = state.challenges.filter(x => x.id !== id); save(); closeSheet(); render();
     }));
-    s.appendChild(btn("Close", "", closeSheet));
+    s.appendChild(btn(t("close"), "", closeSheet));
   });
 }
 
 // Backup: data lives only on this device, so offer export/import.
 $("menu").onclick = () => openSheet(s => {
-  s.appendChild(el("h3", null, "Your data"));
-  s.appendChild(el("p", "rule", "Everything is stored only on this device. Export a backup to move it to a new phone."));
-  s.appendChild(btn("Export backup", "", async () => {
+  s.appendChild(el("h3", null, t("settings")));
+  s.appendChild(el("div", "tpl-g", t("language")));
+  const sel = el("select", "lang");
+  const optAuto = el("option", null, `${t("auto")} (${LANGS[detectLang()].label})`); optAuto.value = "auto"; sel.appendChild(optAuto);
+  for (const [code, L] of Object.entries(LANGS)) { const o = el("option", null, L.label); o.value = code; sel.appendChild(o); }
+  sel.value = langPref();
+  sel.onchange = () => { try { localStorage.setItem(LANG_KEY, sel.value); } catch {} applyLang(); closeSheet(); render(); };
+  s.appendChild(sel);
+  s.appendChild(el("p", "rule", t("dataBody")));
+  s.appendChild(btn(t("export"), "", async () => {
     const json = JSON.stringify(state, null, 1);
     const file = new File([json], `shugyo-backup-${today()}.json`, { type: "application/json" });
     try {
@@ -344,19 +356,19 @@ $("menu").onclick = () => openSheet(s => {
     } catch (e) { if (e.name === "AbortError") return; }
     const a = el("a"); a.href = URL.createObjectURL(file); a.download = file.name; a.click();
   }));
-  s.appendChild(btn("Import backup", "", () => {
+  s.appendChild(btn(t("import"), "", () => {
     const inp = el("input"); inp.type = "file"; inp.accept = "application/json,.json";
     inp.onchange = async () => {
       try {
         const data = JSON.parse(await inp.files[0].text());
         if (!data || !Array.isArray(data.challenges)) throw new Error();
-        if (!confirm("Replace everything on this device with this backup?")) return;
-        state = data; save(); closeSheet(); render(); toast("Backup restored");
-      } catch { toast("That isn't a Shugyō backup"); }
+        if (!confirm(t("confirmImport"))) return;
+        state = data; save(); closeSheet(); render(); toast(t("restored"));
+      } catch { toast(t("notBackup")); }
     };
     inp.click();
   }));
-  s.appendChild(btn("Close", "", closeSheet));
+  s.appendChild(btn(t("close"), "", closeSheet));
 });
 
 let toastT;
@@ -365,6 +377,7 @@ function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add
 // Re-check the day when the app comes back to the foreground (iOS keeps PWAs suspended).
 document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
 setInterval(render, 60000);
+applyLang();
 render();
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
