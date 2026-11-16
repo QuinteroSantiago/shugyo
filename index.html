@@ -59,6 +59,19 @@
   }
   .go:active { transform: scale(.98); }
   .go.done { background: var(--card2); color: var(--muted); font-weight: 500; font-size: 15px; }
+  .tool {
+    display: block; width: 100%; border: 0; border-radius: 14px; padding: 13px; font: inherit; font-size: 15px;
+    background: var(--card2); color: var(--text); cursor: pointer; text-align: center; text-decoration: none;
+  }
+  .tool.running { color: var(--red); font-weight: 650; }
+  .tool .clock { font-variant-numeric: tabular-nums; font-size: 20px; }
+  textarea.note {
+    width: 100%; font: inherit; font-size: 16px; padding: 11px 13px; border-radius: 12px; resize: vertical;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); -webkit-user-select: text; user-select: text;
+  }
+  .sheet .hist.notes div { display: block; }
+  .sheet .hist.notes b { color: var(--text); font-size: 13px; }
+  .sheet .hist.notes p { margin: 2px 0 0; white-space: pre-wrap; color: var(--text); }
   .more { border: 0; background: transparent; color: var(--muted); font-size: 22px; padding: 4px 6px; cursor: pointer; }
 
   .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
@@ -165,6 +178,25 @@ const today = () => ymd(new Date());
 const addDays = (day, n) => { const [y, m, d] = day.split("-").map(Number); return ymd(new Date(y, m - 1, d + n)); };
 const pretty = day => { const [y, m, d] = day.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString(LANG, { month: "short", day: "numeric", year: "numeric" }); };
 
+// ---- per-template tools (by template index; language-independent) ----
+// link = a "how to" video, timer = minutes (auto check-in when it ends), note = a daily text box.
+const RAJIO_URL = "https://www.youtube.com/results?search_query=%E3%83%A9%E3%82%B8%E3%82%AA%E4%BD%93%E6%93%8D%E7%AC%AC%E4%B8%80";
+const TOOLS = [
+  { link: RAJIO_URL }, { timer: 10 }, { timer: 10 }, {}, {}, { timer: 20 }, { note: 1 }, { note: 1 }, { note: 1 },
+  {}, {}, { timer: 20 }, { timer: 5 }, { note: 1 }, { note: 1 }, {}, {}, {}, { timer: 5 },
+];
+const tools = c => (c.tpl != null && TOOLS[c.tpl]) || {};
+// Challenges made before tools existed: match their name against any language's template names.
+function backfillTpl() {
+  for (const c of state.challenges) {
+    if (c.tpl != null) continue;
+    for (const Lx of Object.values(LANGS)) {
+      const i = Lx.tpl.findIndex(([name]) => name === c.name);
+      if (i >= 0) { c.tpl = i; break; }
+    }
+  }
+}
+
 // ---- storage ----
 // challenge = { id, name, createdAt, days: [YYYY-MM-DD consecutive], history: [{start,end,days,completed}] }
 let state = load();
@@ -248,6 +280,30 @@ function render() {
     card.appendChild(dots);
 
     if (!won) {
+      const tl = tools(c);
+      if (tl.link) {
+        const a = el("a", "tool", t("openVideo")); a.href = tl.link; a.target = "_blank"; a.rel = "noopener";
+        card.appendChild(a);
+      }
+      if (tl.timer) {
+        const running = state.timer && state.timer.id === c.id;
+        const tb = el("button", "tool" + (running ? " running" : ""));
+        if (running) { tb.append(el("span", null, t("timerStop") + "  ")); tb.append(el("span", "clock", fmtLeft())); }
+        else tb.textContent = t("timerStart", { m: tl.timer });
+        tb.onclick = () => running ? stopTimer() : startTimer(c, tl.timer);
+        card.appendChild(tb);
+      }
+      if (tl.note) {
+        const ta = el("textarea", "note"); ta.rows = 3; ta.placeholder = t("notePh");
+        ta.value = (c.notes || {})[today()] || "";
+        ta.oninput = () => {
+          c.notes = c.notes || {};
+          const v = ta.value.slice(0, 2000);
+          if (v.trim()) c.notes[today()] = v; else delete c.notes[today()];
+          save();
+        };
+        card.appendChild(ta);
+      }
       const go = el("button", "go" + (done ? " done" : ""), done ? t("btnDone") : t("btnGo", { n: n + 1 }));
       go.onclick = () => {
         if (doneToday(c)) { if (!confirm(t("confirmUndo"))) return; c.days.pop(); }
@@ -261,6 +317,51 @@ function render() {
   const standalone = window.navigator.standalone || matchMedia("(display-mode: standalone)").matches;
   $("install").hidden = standalone;
 }
+
+// ---- timer: one at a time, survives reloads via state.timer.endsAt ----
+let audio, wake;
+function fmtLeft() {
+  const ms = Math.max(0, (state.timer?.endsAt || 0) - Date.now());
+  const s = Math.ceil(ms / 1000);
+  return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+}
+async function startTimer(c, minutes) {
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch {}
+  try { wake = await navigator.wakeLock?.request("screen"); } catch {}
+  state.timer = { id: c.id, endsAt: Date.now() + minutes * 60000 };
+  save(); render();
+}
+function stopTimer() {
+  state.timer = null; save();
+  try { wake?.release(); } catch {} wake = null;
+  render();
+}
+function chime() {
+  if (!audio) return;
+  try {
+    [0, .35, .7].forEach(off => {
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(audio.destination);
+      const t0 = audio.currentTime + off;
+      g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(.4, t0 + .02); g.gain.exponentialRampToValueAtTime(.0001, t0 + .3);
+      o.start(t0); o.stop(t0 + .32);
+    });
+  } catch {}
+}
+function tick() {
+  if (!state.timer) return;
+  if (Date.now() >= state.timer.endsAt) {
+    const c = state.challenges.find(x => x.id === state.timer.id);
+    if (c && !doneToday(c) && c.days.length < GOAL) { c.days.push(today()); delete c.justBroke; }
+    chime(); if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    toast(t("timerDone"));
+    stopTimer();
+    return;
+  }
+  const clock = document.querySelector(".tool.running .clock");
+  if (clock) clock.textContent = fmtLeft();
+}
+setInterval(tick, 1000);
 
 // ---- sheets ----
 function openSheet(build) {
@@ -284,8 +385,10 @@ function nameSheet(titleText, initial, onSave) {
   });
 }
 
-function addChallenge(name) {
-  state.challenges.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, createdAt: today(), days: [], history: [] });
+function addChallenge(name, tpl) {
+  const c = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, createdAt: today(), days: [], history: [] };
+  if (tpl != null) c.tpl = tpl;
+  state.challenges.push(c);
   save();
 }
 
@@ -293,7 +396,9 @@ $("add").onclick = () => openSheet(s => {
   s.appendChild(el("h3", null, t("newTitle")));
   const inp = el("input"); inp.placeholder = t("placeholder"); inp.maxLength = 80;
   s.appendChild(inp);
-  const submit = () => { const v = inp.value.trim(); if (!v) return inp.focus(); addChallenge(v); closeSheet(); render(); };
+  let picked = null; // template index, so the challenge gets that template's link/timer/notes
+  inp.oninput = () => { if (!inp.value.trim()) picked = null; };
+  const submit = () => { const v = inp.value.trim(); if (!v) return inp.focus(); addChallenge(v, picked); closeSheet(); render(); };
   inp.onkeydown = e => { if (e.key === "Enter") submit(); };
   s.appendChild(btn(t("start"), "primary", submit));
 
@@ -308,7 +413,7 @@ $("add").onclick = () => openSheet(s => {
     b.appendChild(el("b", null, name));
     b.appendChild(el("small", null, hint));
     b.onclick = () => {
-      inp.value = name;
+      inp.value = name; picked = i;
       inp.scrollIntoView({ behavior: "smooth", block: "center" });
       toast(t("tplToast"));
     };
@@ -328,10 +433,21 @@ function openDetails(id) {
     for (const a of [...c.history].reverse()) row(`${pretty(a.start)} – ${pretty(a.end)}`, `${t("daysN", { n: a.days })} ${a.completed ? "✓" : "✗"}`);
     if (!c.days.length && !c.history.length) row(t("noRuns"), "");
     s.appendChild(h);
+    const notes = Object.entries(c.notes || {}).sort((a, b) => b[0].localeCompare(a[0]));
+    if (notes.length) {
+      s.appendChild(el("div", "tpl-g", t("notes")));
+      const nb = el("div", "hist notes");
+      for (const [d, text] of notes) {
+        const r = el("div"); r.appendChild(el("b", null, pretty(d))); r.appendChild(el("p", null, text)); nb.appendChild(r);
+      }
+      s.appendChild(nb);
+    }
     s.appendChild(btn(t("rename"), "", () => nameSheet(t("rename"), c.name, v => { c.name = v; save(); })));
     s.appendChild(btn(t("delete"), "danger", () => {
       if (!confirm(t("confirmDelete", { name: c.name }))) return;
-      state.challenges = state.challenges.filter(x => x.id !== id); save(); closeSheet(); render();
+      state.challenges = state.challenges.filter(x => x.id !== id);
+      if (state.timer && state.timer.id === id) state.timer = null;
+      save(); closeSheet(); render();
     }));
     s.appendChild(btn(t("close"), "", closeSheet));
   });
@@ -376,9 +492,11 @@ function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add
 
 // Re-check the day when the app comes back to the foreground (iOS keeps PWAs suspended).
 document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
-setInterval(render, 60000);
+setInterval(() => { if (document.activeElement?.tagName !== "TEXTAREA") render(); }, 60000);
+backfillTpl(); save();
 applyLang();
 render();
+tick();
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
