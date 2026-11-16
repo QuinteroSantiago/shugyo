@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shugyō">
+<meta name="theme-color" content="#111114">
+<title>Shugyō</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+  :root {
+    --bg: #111114; --card: #1b1b20; --card2: #24242b; --text: #f2f2f4; --muted: #8e8e98;
+    --line: #2c2c34; --red: #ef4444; --green: #22c55e; --amber: #f59e0b;
+    --safe-t: env(safe-area-inset-top); --safe-b: env(safe-area-inset-bottom);
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f4f4f6; --card: #fff; --card2: #ececf0; --text: #18181b; --muted: #6b6b75; --line: #e2e2e7; }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 16px/1.4 system-ui, -apple-system, "SF Pro Text", sans-serif;
+    padding: calc(var(--safe-t) + 14px) 16px calc(var(--safe-b) + 24px);
+    min-height: 100dvh; -webkit-user-select: none; user-select: none;
+    overscroll-behavior-y: none;
+  }
+  header { display: flex; align-items: center; gap: 10px; margin: 6px 0 18px; }
+  header h1 { margin: 0; font-size: 30px; letter-spacing: -.02em; flex: 1; }
+  .iconbtn {
+    width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--card);
+    color: var(--text); font-size: 22px; line-height: 1; display: grid; place-items: center; cursor: pointer;
+  }
+  .iconbtn.primary { background: var(--red); color: #fff; }
+  .rule { color: var(--muted); font-size: 14px; margin: -10px 0 18px; }
+
+  .list { display: flex; flex-direction: column; gap: 12px; max-width: 560px; margin: 0 auto; }
+  .card { background: var(--card); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .card .head { display: flex; align-items: center; gap: 12px; }
+  .ring { width: 64px; height: 64px; flex: none; position: relative; }
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring .n { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .card .title { flex: 1; min-width: 0; }
+  .card h2 { margin: 0; font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .card .sub.warn { color: var(--amber); }
+  .card .sub.good { color: var(--green); }
+  .dots { display: grid; grid-template-columns: repeat(20, 1fr); gap: 4px; }
+  .dots i { aspect-ratio: 1; border-radius: 3px; background: var(--card2); }
+  .dots i.on { background: var(--red); }
+  .dots i.now { background: var(--green); }
+  .go {
+    width: 100%; border: 0; border-radius: 14px; padding: 15px; font: inherit; font-weight: 650; font-size: 17px;
+    background: var(--red); color: #fff; cursor: pointer; transition: transform .08s;
+  }
+  .go:active { transform: scale(.98); }
+  .go.done { background: var(--card2); color: var(--muted); font-weight: 500; font-size: 15px; }
+  .more { border: 0; background: transparent; color: var(--muted); font-size: 22px; padding: 4px 6px; cursor: pointer; }
+
+  .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
+  .empty b { display: block; color: var(--text); font-size: 20px; margin-bottom: 8px; }
+
+  .install { max-width: 560px; margin: 24px auto 0; color: var(--muted); font-size: 13px; text-align: center; }
+
+  /* bottom sheet */
+  .sheet-bg { position: fixed; inset: 0; background: rgb(0 0 0 / .45); display: none; z-index: 10; }
+  .sheet-bg.open { display: block; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; background: var(--card);
+    border-radius: 20px 20px 0 0; padding: 18px 16px calc(var(--safe-b) + 18px);
+    transform: translateY(105%); transition: transform .22s ease; max-width: 560px; margin: 0 auto;
+  }
+  .sheet.open { transform: none; }
+  .sheet h3 { margin: 0 0 12px; font-size: 17px; }
+  .sheet input {
+    width: 100%; font: inherit; font-size: 17px; padding: 13px 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); margin-bottom: 12px; -webkit-user-select: text; user-select: text;
+  }
+  .sheet .btn {
+    display: block; width: 100%; border: 0; border-radius: 12px; padding: 14px; font: inherit; font-size: 16px;
+    background: var(--card2); color: var(--text); margin-top: 8px; cursor: pointer; text-align: center;
+  }
+  .sheet .btn.primary { background: var(--red); color: #fff; font-weight: 650; }
+  .sheet .btn.danger { color: var(--red); }
+  .sheet .hist { max-height: 30vh; overflow: auto; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+  .sheet .hist div { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(var(--safe-b) + 24px); transform: translateX(-50%);
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px;
+    opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Shugyō</h1>
+  <button class="iconbtn" id="menu" aria-label="Settings">⋯</button>
+  <button class="iconbtn primary" id="add" aria-label="New challenge">+</button>
+</header>
+<p class="rule">One thing, every day, 100 days. Miss a day and you start again from 0.</p>
+<div class="list" id="list"></div>
+<p class="install" id="install" hidden>On iPhone: tap <b>Share</b> → <b>Add to Home Screen</b> to use it like an app. Everything stays on this device.</p>
+
+<div class="sheet-bg" id="bg"></div>
+<div class="sheet" id="sheet"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const GOAL = 100;
+const KEY = "shugyo.v1";
+
+// ---- dates: the device's local calendar day ----
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => ymd(new Date());
+const addDays = (day, n) => { const [y, m, d] = day.split("-").map(Number); return ymd(new Date(y, m - 1, d + n)); };
+const pretty = day => { const [y, m, d] = day.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); };
+
+// ---- storage ----
+// challenge = { id, name, createdAt, days: [YYYY-MM-DD consecutive], history: [{start,end,days,completed}] }
+let state = load();
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.challenges)) return s; } catch {}
+  return { challenges: [] };
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch { toast("Couldn't save — storage is full or blocked"); }
+}
+
+// ---- rules ----
+function closeRun(c, completed) {
+  if (!c.days.length) return;
+  c.history.push({ start: c.days[0], end: c.days[c.days.length - 1], days: c.days.length, completed });
+  c.days = [];
+}
+// A run whose last check-in is before yesterday is broken; a finished run is archived the next day.
+function settle() {
+  const t = today(), y = addDays(t, -1);
+  let changed = false;
+  for (const c of state.challenges) {
+    const last = c.days[c.days.length - 1];
+    if (!last) continue;
+    if (c.days.length >= GOAL && last < t) { closeRun(c, true); changed = true; }
+    else if (last < y) { closeRun(c, false); changed = true; c.justBroke = true; }
+  }
+  if (changed) save();
+}
+const doneToday = c => c.days[c.days.length - 1] === today();
+const best = c => Math.max(c.days.length, ...c.history.map(a => a.days), 0);
+
+// ---- render ----
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+function ring(n) {
+  const r = 28, C = 2 * Math.PI * r, frac = Math.min(n / GOAL, 1);
+  const wrap = el("div", "ring");
+  wrap.innerHTML = `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="${r}" fill="none" stroke="var(--card2)" stroke-width="6"/>` +
+    `<circle cx="32" cy="32" r="${r}" fill="none" stroke="${n >= GOAL ? "var(--green)" : "var(--red)"}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C * frac} ${C}"/></svg>`;
+  wrap.appendChild(el("div", "n", n));
+  return wrap;
+}
+
+function render() {
+  settle();
+  const list = $("list");
+  list.innerHTML = "";
+  if (!state.challenges.length) {
+    const e = el("div", "empty");
+    e.appendChild(el("b", null, "Start your first shugyō"));
+    e.appendChild(el("span", null, "Pick one thing you'll do every single day. Tap + to begin."));
+    list.appendChild(e);
+  }
+  for (const c of state.challenges) {
+    const n = c.days.length, done = doneToday(c), won = n >= GOAL;
+    const card = el("div", "card");
+
+    const head = el("div", "head");
+    head.appendChild(ring(n));
+    const title = el("div", "title");
+    title.appendChild(el("h2", null, c.name));
+    let sub, cls = "sub";
+    if (won) { sub = "100 days. Completed. 🎉"; cls += " good"; }
+    else if (c.justBroke) { sub = `Missed a day — back to 0. Best: ${best(c)}`; cls += " warn"; }
+    else if (!n) sub = c.history.length ? `Best ${best(c)} · ${c.history.filter(a => !a.completed).length} resets` : "Day 1 starts when you check in";
+    else if (done) { sub = `Day ${n} of ${GOAL} · done today`; cls += " good"; }
+    else { sub = `Day ${n} of ${GOAL} · not done today`; cls += " warn"; }
+    title.appendChild(el("div", cls, sub));
+    head.appendChild(title);
+    const more = el("button", "more", "⋯");
+    more.setAttribute("aria-label", "Options");
+    more.onclick = () => openDetails(c.id);
+    head.appendChild(more);
+    card.appendChild(head);
+
+    const dots = el("div", "dots");
+    for (let i = 0; i < GOAL; i++) dots.appendChild(el("i", i < n ? (i === n - 1 && done ? "now" : "on") : ""));
+    card.appendChild(dots);
+
+    if (!won) {
+      const go = el("button", "go" + (done ? " done" : ""), done ? "Done today ✓  (tap to undo)" : `Done today → day ${n + 1}`);
+      go.onclick = () => {
+        if (doneToday(c)) { if (!confirm("Undo today's check-in?")) return; c.days.pop(); }
+        else { c.days.push(today()); delete c.justBroke; if (navigator.vibrate) navigator.vibrate(20); if (c.days.length === GOAL) toast("100 days. Shugyō complete 🎉"); }
+        save(); render();
+      };
+      card.appendChild(go);
+    }
+    list.appendChild(card);
+  }
+  const standalone = window.navigator.standalone || matchMedia("(display-mode: standalone)").matches;
+  $("install").hidden = standalone;
+}
+
+// ---- sheets ----
+function openSheet(build) {
+  const s = $("sheet"); s.innerHTML = ""; build(s);
+  $("bg").classList.add("open"); s.classList.add("open");
+}
+function closeSheet() { $("bg").classList.remove("open"); $("sheet").classList.remove("open"); }
+$("bg").onclick = closeSheet;
+function btn(text, cls, fn) { const b = el("button", "btn " + (cls || ""), text); b.onclick = fn; return b; }
+
+function nameSheet(titleText, initial, onSave) {
+  openSheet(s => {
+    s.appendChild(el("h3", null, titleText));
+    const inp = el("input"); inp.placeholder = "e.g. 50 push-ups, read 10 pages, no sugar"; inp.value = initial || ""; inp.maxLength = 80;
+    s.appendChild(inp);
+    const submit = () => { const v = inp.value.trim(); if (!v) return inp.focus(); onSave(v); closeSheet(); render(); };
+    inp.onkeydown = e => { if (e.key === "Enter") submit(); };
+    s.appendChild(btn("Save", "primary", submit));
+    s.appendChild(btn("Cancel", "", closeSheet));
+    setTimeout(() => inp.focus(), 250);
+  });
+}
+
+$("add").onclick = () => nameSheet("What will you do every day for 100 days?", "", name => {
+  state.challenges.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, createdAt: today(), days: [], history: [] });
+  save();
+});
+
+function openDetails(id) {
+  const c = state.challenges.find(x => x.id === id); if (!c) return;
+  openSheet(s => {
+    s.appendChild(el("h3", null, c.name));
+    const h = el("div", "hist");
+    const row = (l, r) => { const d = el("div"); d.appendChild(el("span", null, l)); d.appendChild(el("span", null, r)); h.appendChild(d); };
+    if (c.days.length) row(`Current run · since ${pretty(c.days[0])}`, `${c.days.length} days`);
+    for (const a of [...c.history].reverse()) row(`${pretty(a.start)} – ${pretty(a.end)}`, `${a.days} days ${a.completed ? "✓" : "✗"}`);
+    if (!c.days.length && !c.history.length) row("No runs yet", "");
+    s.appendChild(h);
+    s.appendChild(btn("Rename", "", () => nameSheet("Rename", c.name, v => { c.name = v; save(); })));
+    s.appendChild(btn("Delete challenge", "danger", () => {
+      if (!confirm(`Delete "${c.name}" and all its history?`)) return;
+      state.challenges = state.challenges.filter(x => x.id !== id); save(); closeSheet(); render();
+    }));
+    s.appendChild(btn("Close", "", closeSheet));
+  });
+}
+
+// Backup: data lives only on this device, so offer export/import.
+$("menu").onclick = () => openSheet(s => {
+  s.appendChild(el("h3", null, "Your data"));
+  s.appendChild(el("p", "rule", "Everything is stored only on this device. Export a backup to move it to a new phone."));
+  s.appendChild(btn("Export backup", "", async () => {
+    const json = JSON.stringify(state, null, 1);
+    const file = new File([json], `shugyo-backup-${today()}.json`, { type: "application/json" });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+    } catch (e) { if (e.name === "AbortError") return; }
+    const a = el("a"); a.href = URL.createObjectURL(file); a.download = file.name; a.click();
+  }));
+  s.appendChild(btn("Import backup", "", () => {
+    const inp = el("input"); inp.type = "file"; inp.accept = "application/json,.json";
+    inp.onchange = async () => {
+      try {
+        const data = JSON.parse(await inp.files[0].text());
+        if (!data || !Array.isArray(data.challenges)) throw new Error();
+        if (!confirm("Replace everything on this device with this backup?")) return;
+        state = data; save(); closeSheet(); render(); toast("Backup restored");
+      } catch { toast("That isn't a Shugyō backup"); }
+    };
+    inp.click();
+  }));
+  s.appendChild(btn("Close", "", closeSheet));
+});
+
+let toastT;
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2400); }
+
+// Re-check the day when the app comes back to the foreground (iOS keeps PWAs suspended).
+document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
+setInterval(render, 60000);
+render();
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+</script>
+</body>
+</html>
